@@ -6,6 +6,7 @@ import cv2 as cv
 import face_recognition_models
 import face_recognition
 import argparse
+import numpy as np
 
 def dbConnect(dbFilePath):
 	sql_statement = """
@@ -32,10 +33,10 @@ def deserialize_embedding(blob):
     return np.frombuffer(blob, dtype=np.float64)
 
 # Search for faces in the input image. 
-def encodeFromImage(imagePath):
+def encodeFromImage(imagePath, model):
 	bgr_image = cv.imread(imagePath)
 	rgb_image = cv.cvtColor(bgr_image, cv.COLOR_BGR2RGB)
-	boxes = face_recognition.face_locations(rgb_image, model="cnn")
+	boxes = face_recognition.face_locations(rgb_image, model=model)
 	print(f"[*] Boxes: {boxes}")
 	encodings = face_recognition.face_encodings(rgb_image, boxes)
 	print(f"[*] Encodings: {encodings}")
@@ -83,17 +84,21 @@ def createNewDbEntry(encoding, imagePath):
 		cursor.execute(
 		"INSERT INTO identities (encoding, imagePath) VALUES (?, ?)", 
 		(encodingBytes, imagePath))
+		connection.commit()
 		print(f"[*] Succesfully added id: {cursor.lastrowid} to the database")
 	except:
 		print("[!] Failed to add new user to database")
+	connection.close()
 
 def main():
 	# Take in image path 
 	ap = argparse.ArgumentParser()
-	ap.add_argument("-i", "--image", required=True)
+	ap.add_argument("-i", "--image", required=True, help="Image to encode")
+	ap.add_argument("-m", "--model", required=False, default="cnn", choices=["cnn", "hog"],help="Model to use. CNN is more accurate but more expensive but hog is cheaper and less accurate")
 	args = vars(ap.parse_args())
 	imagePath = args["image"]
-	encodings = encodeFromImage(imagePath)
+	model = args["model"]
+	encodings = encodeFromImage(imagePath, model)
 
 	# Make sure we found at least one face in the image 
 	if not encodings:
